@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Leaderboard — Display</title>
+  <style>
+    :root{
+      --bg:#0e0f12; --panel:#151822; --muted:#9aa3af; --text:#e5e7eb; --accent:#7dd3fc; --border:#1f2633;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif;background:var(--bg);color:var(--text)}
+    .container{max-width:1100px;margin:0 auto;padding:20px}
+    header{display:flex;align-items:center;gap:16px;justify-content:space-between;margin-bottom:16px}
+    .big{font-size:clamp(22px,3vw,36px);font-weight:800;letter-spacing:.3px}
+    .sub{color:var(--muted)}
+    .panel{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:16px}
+    .table-wrap{overflow:auto;border:1px solid var(--border);border-radius:16px}
+    table{width:100%;border-collapse:separate;border-spacing:0}
+    th,td{padding:12px 14px;border-bottom:1px solid var(--border)}
+    th{position:sticky;top:0;background:#10131b;color:var(--muted);text-align:left;font-weight:600}
+    tr:last-child td{border-bottom:none}
+    .rank{font-variant-numeric:tabular-nums;font-weight:700}
+    .time{font-variant-numeric:tabular-nums}
+    .badge{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);border-radius:999px;padding:6px 10px;color:var(--muted);font-size:12px}
+    .fullscreen-btn{position:fixed;right:16px;bottom:16px;z-index:40}
+    button{appearance:none;border:1px solid var(--border);background:#0b0d13;color:var(--text);padding:10px 14px;border-radius:10px;cursor:pointer}
+    a{color:inherit;opacity:.8}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div>
+        <div class="big" id="screen-title">Forty Winks-------Leaderboard</div>
+     
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <span class="badge" id="entry-count">0 entries</span>
+        <span class="badge" id="last-updated">Updated —</span>
+      </div>
+    </header>
+
+    <div class="table-wrap">
+      <table aria-label="Leaderboard table">
+        <thead>
+          <tr>
+            <th style="width:90px">Rank</th>
+            <th>Name</th>
+            <th style="width:160px">Time</th>
+          </tr>
+        </thead>
+        <tbody id="display-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <button class="fullscreen-btn" id="btn-fullscreen" title="Enter fullscreen">⤢ Fullscreen</button>
+
+  <script>
+    // Shared keys with admin.html
+    const STORAGE_KEY = 'leaderboardEntries:v1';
+    const SETTINGS_KEY = 'leaderboardSettings:v1';
+
+    function getEntries(){ try{ return JSON.parse(localStorage.getItem(STORAGE_KEY))||[] }catch{ return [] } }
+    function getSettings(){ try{ return JSON.parse(localStorage.getItem(SETTINGS_KEY))||{title:'Leaderboard',topN:'',rotateSeconds:0} }catch{ return {title:'Leaderboard',topN:'',rotateSeconds:0} } }
+
+    function formatMs(ms){ if(!Number.isFinite(ms)) return '—'; const s=Math.floor(ms/1000); const m=Math.floor(s/60); const sec=s%60; const msPart=ms%1000; return `${m}:${sec.toString().padStart(2,'0')}.${msPart.toString().padStart(3,'0')}` }
+
+    function sortedEntries(){ const list=getEntries().slice(); list.sort((a,b)=> a.timeMs-b.timeMs || a.created.localeCompare(b.created)); return list }
+
+    const screenTitle=document.getElementById('screen-title');
+    const entryCount=document.getElementById('entry-count');
+    const lastUpdated=document.getElementById('last-updated');
+    const displayTbody=document.getElementById('display-tbody');
+
+    let rotateIndex=0, rotateTimer=null;
+
+    function render(){
+      const s = getSettings();
+      const all = sortedEntries();
+      const topN = s.topN ? Math.max(1, Number(s.topN)) : null;
+      const list = topN ? all.slice(0, topN) : all;
+
+      screenTitle.textContent = s.title || 'Leaderboard';
+      entryCount.textContent = `${all.length} entr${all.length===1?'y':'ies'}`;
+      const updated = localStorage.getItem('leaderboardLastUpdated');
+      lastUpdated.textContent = updated ? `Updated ${new Date(updated).toLocaleString()}` : 'Updated —';
+
+      displayTbody.innerHTML = '';
+      list.forEach((e, idx)=>{
+        const tr=document.createElement('tr');
+        tr.innerHTML = `<td class="rank">${idx+1}</td><td>${escapeHtml(e.name)}</td><td class="time">${formatMs(e.timeMs)}</td>`;
+        displayTbody.appendChild(tr);
+      });
+
+      if (rotateTimer) clearInterval(rotateTimer);
+      const secs = Number(s.rotateSeconds)||0;
+      if (secs>0 && list.length>0){
+        const rows = [...displayTbody.querySelectorAll('tr')];
+        const tick=()=>{ rows.forEach(r=> r.style.background=''); const r=rows[rotateIndex%rows.length]; r.style.background='rgba(125,211,252,0.08)'; rotateIndex++; };
+        tick(); rotateTimer=setInterval(tick, secs*1000);
+      }
+    }
+
+    // Fallback polling so this works even with file:// URLs where storage events don't propagate between files.
+    setInterval(render, 2000);
+
+    // Also re-render when storage changes in this tab (if same-origin).
+    window.addEventListener('storage', (e)=>{ if([STORAGE_KEY, SETTINGS_KEY, 'leaderboardLastUpdated'].includes(e.key)) render(); });
+
+    // Fullscreen
+    document.getElementById('btn-fullscreen').addEventListener('click', ()=>{
+      const el = document.documentElement; if (!document.fullscreenElement){ el.requestFullscreen?.(); } else { document.exitFullscreen?.(); }
+    });
+
+    function escapeHtml(s){ return (''+s).replace(/[&<>\"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c])); }
+
+    // First render & demo seed if empty
+    (function init(){
+      if (!localStorage.getItem(STORAGE_KEY)){
+        const demo=[
+          {id:crypto.randomUUID(), name:'Ava', timeMs:72345, created:new Date().toISOString()},
+          {id:crypto.randomUUID(), name:'Noah', timeMs:70123, created:new Date().toISOString()},
+          {id:crypto.randomUUID(), name:'Mia', timeMs:76543, created:new Date().toISOString()}
+        ];
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(demo));
+        localStorage.setItem('leaderboardLastUpdated', new Date().toISOString());
+      }
+      if (!localStorage.getItem(SETTINGS_KEY)){
+        localStorage.setItem(SETTINGS_KEY, JSON.stringify({title:'Leaderboard', topN:'', rotateSeconds:0}));
+      }
+      render();
+    })();
+  </script>
+</body>
+</html>
