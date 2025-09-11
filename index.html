@@ -54,6 +54,43 @@
   }
   a{ color: var(--accent) !important; opacity: 1 !important; }
 </style>
+<style>
+  /* === Animated gradient using your colours === */
+  :root{
+    --grad1: #121FA2;  /* deep blue */
+    --grad2: #0A1144;  /* light blue */
+    --grad3: #1E4AF2;  /* yellow */
+  }
+
+  /* Keep the current UI readable; animate behind everything */
+  body{ position: relative; }
+  body::before{
+    content: "";
+    position: fixed;    /* cover the viewport even when scrolling */
+    inset: 0;
+    z-index: -1;        /* sit behind all content */
+    background: linear-gradient(-45deg, var(--grad1), var(--grad2), var(--grad3), var(--grad2));
+    background-size: 400% 400%;
+    animation: nt-gradient 16s ease infinite;
+    /* Slight tone-down so table/content remain crisp; tweak if you want it punchier */
+    filter: saturate(115%) brightness(0.90);
+  }
+
+  @keyframes nt-gradient {
+    0%   { background-position:   0% 50%; }
+    50%  { background-position: 100% 50%; }
+    100% { background-position:   0% 50%; }
+  }
+
+  /* Accessibility: respect reduced motion preferences */
+  @media (prefers-reduced-motion: reduce){
+    body::before{
+      animation: none;
+      background-position: 50% 50%;
+    }
+  }
+</style>
+
 </head>
 <body>
   <div class="container">
