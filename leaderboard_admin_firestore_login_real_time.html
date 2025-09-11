@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Leaderboard — Admin (Cloud)</title>
+  <style>
+    :root{
+      --bg:#0e0f12; --panel:#151822; --muted:#9aa3af; --text:#e5e7eb; --border:#1f2633; --good:#34d399; --bad:#ef4444;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif;background:var(--bg);color:var(--text)}
+    .container{max-width:1100px;margin:0 auto;padding:20px}
+    header{display:flex;align-items:center;gap:16px;justify-content:space-between;margin-bottom:16px}
+
+    .panel{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:16px}
+    .stack{display:grid;gap:14px}
+    .row{display:flex;gap:12px;flex-wrap:wrap}
+    .row > *{flex:1 1 220px}
+    label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
+    input[type="text"], input[type="number"], input[type="password"], input[type="email"], input[type="file"], textarea, select{
+      width:100%;padding:12px 12px;border-radius:10px;border:1px solid var(--border);background:#0b0d13;color:var(--text);
+    }
+    button{appearance:none;border:1px solid var(--border);background:#0b0d13;color:var(--text);padding:10px 14px;border-radius:10px;cursor:pointer}
+    button.primary{background:linear-gradient(180deg,#111726,#0e1522);border-color:#2a3345}
+    button.ghost{background:transparent}
+    button.danger{border-color:#3b1e24;background:#1a0f12;color:#fca5a5}
+    .table-wrap{overflow:auto;border:1px solid var(--border);border-radius:16px}
+    table{width:100%;border-collapse:separate;border-spacing:0}
+    th,td{padding:12px 14px;border-bottom:1px solid var(--border)}
+    th{position:sticky;top:0;background:#10131b;color:var(--muted);text-align:left;font-weight:600}
+    tr:last-child td{border-bottom:none}
+    .rank{font-variant-numeric:tabular-nums;font-weight:700}
+    .time{font-variant-numeric:tabular-nums}
+    .sub{color:var(--muted)}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div>
+        <div style="font-size:clamp(22px,3vw,36px);font-weight:800">Leaderboard Admin</div>
+        <div class="sub">Real-time with Firebase. <a href="index.html">Open Display</a></div>
+      </div>
+      <div id="auth-area"></div>
+    </header>
+
+    <!-- Auth Panel -->
+    <div class="panel" id="login-panel">
+      <div style="font-weight:700;margin-bottom:8px">Sign in</div>
+      <div class="row">
+        <div>
+          <label>Email</label>
+          <input id="email" type="email" placeholder="you@example.com" />
+        </div>
+        <div>
+          <label>Password</label>
+          <input id="password" type="password" placeholder="••••••••" />
+        </div>
+      </div>
+      <div class="row">
+        <button class="primary" id="btn-login">Sign in</button>
+        <div class="sub">You can create this user in Firebase Console → Authentication.</div>
+      </div>
+      <div id="login-msg" class="sub" style="margin-top:8px"></div>
+    </div>
+
+    <!-- Admin UI (hidden until authed) -->
+    <div id="app" hidden>
+      <div class="panel">
+        <div class="grid" style="display:grid;grid-template-columns:2fr 1fr;gap:16px">
+          <div class="stack">
+            <div class="row">
+              <div>
+                <label>Competitor name</label>
+                <input id="name" type="text" placeholder="Jane Smith" />
+              </div>
+              <div>
+                <label>Time (accepts mm:ss.mmm, ss.mmm, or seconds)</label>
+                <input id="time" type="text" placeholder="1:12.345 or 72.345 or 72" />
+              </div>
+            </div>
+            <div class="row">
+              <button class="primary" id="add">Add Entry</button>
+              <button id="add-and-clear">Add & New</button>
+              <button class="danger" id="clear-all">Clear All Entries</button>
+            </div>
+          </div>
+          <div class="stack">
+            <div class="panel">
+              <div style="font-weight:700">Display Settings</div>
+              <div class="stack" style="margin-top:12px">
+                <div>
+                  <label>Screen title</label>
+                  <input id="setting-title" type="text" placeholder="Leaderboard title" />
+                </div>
+                <div>
+                  <label>Show top N (blank = all)</label>
+                  <input id="setting-topN" type="number" min="1" />
+                </div>
+                <div>
+                  <label>Rotate highlight every (seconds, 0 = off)</label>
+                  <input id="setting-rotate" type="number" min="0" value="0" />
+                </div>
+                <button id="save-settings">Save Settings</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <div style="font-weight:700">Entries (auto-sorted by quickest time)</div>
+        </div>
+        <div class="table-wrap">
+          <table aria-label="Entries table">
+            <thead>
+              <tr>
+                <th style="width:80px">#</th>
+                <th>Name</th>
+                <th style="width:160px">Time</th>
+                <th style="width:120px">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="admin-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    // ===== Firebase SDK via CDN =====
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+    import { getFirestore, collection, addDoc, deleteDoc, doc, setDoc, getDoc, getDocs, onSnapshot, serverTimestamp, writeBatch } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+    import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+
+    // 1) Paste your Firebase config here (same as Display)
+    const firebaseConfig = {
+      apiKey: "YOUR_API_KEY",
+      authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+      projectId: "YOUR_PROJECT_ID",
+      storageBucket: "YOUR_PROJECT_ID.appspot.com",
+      messagingSenderId: "YOUR_SENDER_ID",
+      appId: "YOUR_APP_ID"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const auth = getAuth(app);
+
+    // ===== Auth UI =====
+    const loginPanel = document.getElementById('login-panel');
+    const appPanel = document.getElementById('app');
+    const authArea = document.getElementById('auth-area');
+    const emailEl = document.getElementById('email');
+    const passEl = document.getElementById('password');
+    const loginBtn = document.getElementById('btn-login');
+    const loginMsg = document.getElementById('login-msg');
+
+    loginBtn.addEventListener('click', async ()=>{
+      loginMsg.textContent = '';
+      try{
+        await signInWithEmailAndPassword(auth, emailEl.value.trim(), passEl.value);
+      }catch(err){ loginMsg.textContent = `Sign-in failed: ${err.code||err.message}`; }
+    });
+
+    onAuthStateChanged(auth, (user)=>{
+      if (user){
+        loginPanel.hidden = true; appPanel.hidden = false;
+        authArea.innerHTML = `<span class="sub">Signed in as ${user.email||user.uid}</span> <button id="btn-logout" class="ghost">Sign out</button>`;
+        document.getElementById('btn-logout').addEventListener('click', ()=> signOut(auth));
+      } else {
+        loginPanel.hidden = false; appPanel.hidden = true; authArea.innerHTML='';
+      }
+    });
+
+    // ===== Data & Settings =====
+    const nameEl = document.getElementById('name');
+    const timeEl = document.getElementById('time');
+    const addBtn = document.getElementById('add');
+    const addNewBtn = document.getElementById('add-and-clear');
+    const adminTbody = document.getElementById('admin-tbody');
+    const clearAllBtn = document.getElementById('clear-all');
+
+    const settingTitle = document.getElementById('setting-title');
+    const settingTopN = document.getElementById('setting-topN');
+    const settingRotate = document.getElementById('setting-rotate');
+    const saveSettingsBtn = document.getElementById('save-settings');
+
+    // Draft autosave so you can navigate away mid-entry
+    const DRAFT_NAME_KEY = 'leaderboardDraftName';
+    const DRAFT_TIME_KEY = 'leaderboardDraftTime';
+    function loadDraft(){ const dn=localStorage.getItem(DRAFT_NAME_KEY); const dt=localStorage.getItem(DRAFT_TIME_KEY); if(dn!==null) nameEl.value=dn; if(dt!==null) timeEl.value=dt; }
+    function saveDraft(){ localStorage.setItem(DRAFT_NAME_KEY, nameEl.value); localStorage.setItem(DRAFT_TIME_KEY, timeEl.value); }
+    nameEl.addEventListener('input', saveDraft); timeEl.addEventListener('input', saveDraft);
+
+    function parseTimeToMs(input){ if(typeof input==='number') return Math.round(input*1000); if(!input) return NaN; let s=(''+input).trim().replace(/,/g,'.'); if(!s) return NaN; if(s.includes(':')){ const [m,sec]=s.split(':'); const mm=Number(m), ss=Number(sec); if(Number.isNaN(mm)||Number.isNaN(ss)) return NaN; return Math.round((mm*60+ss)*1000);} const ss=Number(s); if(Number.isNaN(ss)) return NaN; return Math.round(ss*1000);} 
+    function formatMs(ms){ if(!Number.isFinite(ms)) return '—'; const s=Math.floor(ms/1000); const m=Math.floor(s/60); const sec=s%60; const msPart=ms%1000; return `${m}:${sec.toString().padStart(2,'0')}.${msPart.toString().padStart(3,'0')}` }
+
+    // Live entries table
+    onSnapshot(collection(db, 'entries'), (snap)=>{
+      const list = snap.docs.map(d=> ({ id:d.id, ...d.data() }));
+      list.sort((a,b)=> (a.timeMs||Infinity)-(b.timeMs||Infinity) || (a.created?.seconds||0)-(b.created?.seconds||0));
+      adminTbody.innerHTML='';
+      list.forEach((e, idx)=>{
+        const tr=document.createElement('tr');
+        tr.innerHTML=`<td class="rank">${idx+1}</td><td>${escapeHtml(e.name||'')}</td><td class="time">${formatMs(e.timeMs)}</td><td><button class="ghost btn-del" data-id="${e.id}">Delete</button></td>`;
+        adminTbody.appendChild(tr);
+      });
+      adminTbody.querySelectorAll('.btn-del').forEach(btn=> btn.addEventListener('click', async (ev)=>{
+        const id=ev.currentTarget.getAttribute('data-id');
+        try{ await deleteDoc(doc(db,'entries',id)); await setDoc(doc(db,'meta','stats'), { lastUpdated: serverTimestamp() }, { merge:true }); }catch(err){ alert('Delete failed: '+(err.code||err.message)); }
+      }));
+    });
+
+    // Settings load (one-time + live)
+    onSnapshot(doc(db,'settings','display'), (snap)=>{
+      const s = snap.exists()? snap.data(): { title:'Leaderboard', topN:'', rotateSeconds:0 };
+      settingTitle.value = s.title || '';
+      settingTopN.value = s.topN || '';
+      settingRotate.value = s.rotateSeconds ?? 0;
+    });
+
+    addBtn.addEventListener('click', ()=> addEntry());
+    addNewBtn.addEventListener('click', ()=>{ addEntry(); nameEl.value=''; timeEl.value=''; saveDraft(); nameEl.focus(); });
+
+    clearAllBtn.addEventListener('click', async ()=>{
+      if(!confirm('Clear ALL entries? This cannot be undone.')) return;
+      try{
+        const snap = await getDocs(collection(db,'entries'));
+        const batch = writeBatch(db);
+        snap.docs.forEach(d=> batch.delete(d.ref));
+        await batch.commit();
+        await setDoc(doc(db,'meta','stats'), { lastUpdated: serverTimestamp() }, { merge:true });
+      }catch(err){ alert('Clear failed: '+(err.code||err.message)); }
+    });
+
+    async function addEntry(){
+      const name=nameEl.value.trim(); const raw=timeEl.value.trim();
+      if(!name){ alert('Please enter a name.'); return; }
+      const timeMs=parseTimeToMs(raw); if(!Number.isFinite(timeMs) || timeMs<=0){ alert('Enter a valid time: mm:ss.mmm, ss.mmm, or seconds.'); return; }
+      try{
+        await addDoc(collection(db,'entries'), { name, timeMs, created: serverTimestamp() });
+        await setDoc(doc(db,'meta','stats'), { lastUpdated: serverTimestamp() }, { merge:true });
+      }catch(err){ alert('Add failed: '+(err.code||err.message)); }
+    }
+
+    saveSettingsBtn.addEventListener('click', async ()=>{
+      const cfg={ title:(settingTitle.value.trim()||'Leaderboard'), topN:(settingTopN.value.trim()||''), rotateSeconds: Number(settingRotate.value)||0 };
+      try{ await setDoc(doc(db,'settings','display'), cfg, { merge:true }); await setDoc(doc(db,'meta','stats'), { lastUpdated: serverTimestamp() }, { merge:true }); alert('Settings saved.'); }catch(err){ alert('Save failed: '+(err.code||err.message)); }
+    });
+
+    function escapeHtml(s){ return (''+s).replace(/[&<>\"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c])); }
+
+    (function init(){ loadDraft(); })();
+  </script>
+</body>
+</html>

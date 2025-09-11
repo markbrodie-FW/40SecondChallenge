@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Leaderboard — Display</title>
+  <title>Leaderboard — Display (Cloud)</title>
   <style>
     :root{
       --bg:#0e0f12; --panel:#151822; --muted:#9aa3af; --text:#e5e7eb; --accent:#7dd3fc; --border:#1f2633;
@@ -14,7 +14,6 @@
     .container{max-width:1100px;margin:0 auto;padding:20px}
     header{display:flex;align-items:center;justify-content:center;margin-bottom:16px}
     .big{font-size:clamp(26px,4vw,44px);font-weight:800;letter-spacing:.3px;text-align:center}
-    .panel{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:16px}
     .table-wrap{overflow:auto;border:1px solid var(--border);border-radius:16px}
     table{width:100%;border-collapse:separate;border-spacing:0}
     th,td{padding:12px 14px;border-bottom:1px solid var(--border)}
@@ -26,8 +25,6 @@
     .fullscreen-btn{position:fixed;right:16px;bottom:70px;z-index:40}
     button{appearance:none;border:1px solid var(--border);background:#0b0d13;color:var(--text);padding:10px 14px;border-radius:10px;cursor:pointer}
     a{color:inherit;opacity:.8}
-
-    /* New footer anchored to bottom */
     .footer-status{position:fixed;left:0;right:0;bottom:0;z-index:30;display:flex;justify-content:center;gap:10px;padding:10px 14px;background:rgba(10,12,18,0.8);backdrop-filter:saturate(130%) blur(4px);border-top:1px solid var(--border)}
   </style>
   <style>
@@ -57,7 +54,6 @@
   }
   a{ color: var(--accent) !important; opacity: 1 !important; }
 </style>
-
 </head>
 <body>
   <div class="container">
@@ -79,7 +75,6 @@
     </div>
   </div>
 
-  <!-- Fixed footer shows counts and last updated -->
   <footer class="footer-status" aria-live="polite">
     <span class="badge" id="entry-count">0 entries</span>
     <span class="badge" id="last-updated">Updated —</span>
@@ -87,79 +82,90 @@
 
   <button class="fullscreen-btn" id="btn-fullscreen" title="Enter fullscreen">⤢ Fullscreen</button>
 
-  <script>
-    // Shared keys with admin.html
-    const STORAGE_KEY = 'leaderboardEntries:v1';
-    const SETTINGS_KEY = 'leaderboardSettings:v1';
+  <script type="module">
+    // ===== Firebase (client SDK via CDN) =====
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+    import { getFirestore, collection, doc, onSnapshot, query, orderBy } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
-    function getEntries(){ try{ return JSON.parse(localStorage.getItem(STORAGE_KEY))||[] }catch{ return [] } }
-    function getSettings(){ try{ return JSON.parse(localStorage.getItem(SETTINGS_KEY))||{title:'Leaderboard',topN:'',rotateSeconds:0} }catch{ return {title:'Leaderboard',topN:'',rotateSeconds:0} } }
+    // 1) Paste your Firebase config here (from Firebase Console → Project settings → Web app)
+    const firebaseConfig = {
+   apiKey: "AIzaSyCd-nbnWC-uvSjAkDujRu31fO-C-DkxT98",
+  authDomain: "forty-sec-challenge.firebaseapp.com",
+  projectId: "forty-sec-challenge",
+  storageBucket: "forty-sec-challenge.firebasestorage.app",
+  messagingSenderId: "655465733506",
+  appId: "1:655465733506:web:c42b8864a60468bf84039b"
+    };
 
-    function formatMs(ms){ if(!Number.isFinite(ms)) return '—'; const s=Math.floor(ms/1000); const m=Math.floor(s/60); const sec=s%60; const msPart=ms%1000; return `${m}:${sec.toString().padStart(2,'0')}.${msPart.toString().padStart(3,'0')}` }
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
 
-    function sortedEntries(){ const list=getEntries().slice(); list.sort((a,b)=> a.timeMs-b.timeMs || a.created.localeCompare(b.created)); return list }
+    // ===== UI Elements =====
+    const screenTitle = document.getElementById('screen-title');
+    const entryCount  = document.getElementById('entry-count');
+    const lastUpdated = document.getElementById('last-updated');
+    const displayTbody= document.getElementById('display-tbody');
 
-    const screenTitle=document.getElementById('screen-title');
-    const entryCount=document.getElementById('entry-count');
-    const lastUpdated=document.getElementById('last-updated');
-    const displayTbody=document.getElementById('display-tbody');
-
+    // Live state
+    let settings = { title:'Leaderboard', topN:'', rotateSeconds:0 };
+    let entries = [];
     let rotateIndex=0, rotateTimer=null;
 
-    function render(){
-      const s = getSettings();
-      const all = sortedEntries();
-      const topN = s.topN ? Math.max(1, Number(s.topN)) : null;
-      const list = topN ? all.slice(0, topN) : all;
+    // Listen to settings (doc: settings/display)
+    onSnapshot(doc(db, 'settings', 'display'), (snap)=>{
+      if (snap.exists()) settings = { ...settings, ...snap.data() };
+      render();
+    });
 
-      screenTitle.textContent = s.title || 'Leaderboard';
-      entryCount.textContent = `${all.length} entr${all.length===1?'y':'ies'}`;
-      const updated = localStorage.getItem('leaderboardLastUpdated');
-      lastUpdated.textContent = updated ? `Updated ${new Date(updated).toLocaleString()}` : 'Updated —';
+    // Listen to entries (collection: entries). Order by timeMs asc for speed; tie-break handled in render.
+    onSnapshot(query(collection(db, 'entries'), orderBy('timeMs', 'asc')), (snap)=>{
+      entries = snap.docs.map(d=> ({ id:d.id, ...d.data() }));
+      render();
+    });
+
+    // Listen to meta/stats for lastUpdated timestamp
+    onSnapshot(doc(db, 'meta', 'stats'), (snap)=>{
+      if (snap.exists() && snap.data().lastUpdated){
+        const ts = snap.data().lastUpdated.toDate();
+        lastUpdated.textContent = `Updated ${ts.toLocaleString()}`;
+      }
+    });
+
+    function render(){
+      screenTitle.textContent = settings.title || 'Leaderboard';
+
+      // Stable sort (tie-break by created if present)
+      const list = entries.slice().sort((a,b)=> (a.timeMs||Infinity)-(b.timeMs||Infinity) || (a.created?.seconds||0)-(b.created?.seconds||0));
+      const topN = settings.topN ? Math.max(1, Number(settings.topN)) : null;
+      const view = topN ? list.slice(0, topN) : list;
+
+      entryCount.textContent = `${list.length} entr${list.length===1?'y':'ies'}`;
 
       displayTbody.innerHTML = '';
-      list.forEach((e, idx)=>{
+      view.forEach((e, idx)=>{
         const tr=document.createElement('tr');
-        tr.innerHTML = `<td class=\"rank\">${idx+1}</td><td>${escapeHtml(e.name)}</td><td class=\"time\">${formatMs(e.timeMs)}</td>`;
+        tr.innerHTML = `<td class="rank">${idx+1}</td><td>${escapeHtml(e.name||'')}</td><td class="time">${formatMs(e.timeMs)}</td>`;
         displayTbody.appendChild(tr);
       });
 
+      // Row highlight rotation
       if (rotateTimer) clearInterval(rotateTimer);
-      const secs = Number(s.rotateSeconds)||0;
-      if (secs>0 && list.length>0){
+      const secs = Number(settings.rotateSeconds)||0;
+      if (secs>0 && view.length>0){
         const rows = [...displayTbody.querySelectorAll('tr')];
         const tick=()=>{ rows.forEach(r=> r.style.background=''); const r=rows[rotateIndex%rows.length]; r.style.background='rgba(125,211,252,0.08)'; rotateIndex++; };
         tick(); rotateTimer=setInterval(tick, secs*1000);
       }
     }
 
-    // Fallback polling so this works even with file:// URLs where storage events don't propagate between files.
-    setInterval(render, 2000);
-    window.addEventListener('storage', (e)=>{ if([STORAGE_KEY, SETTINGS_KEY, 'leaderboardLastUpdated'].includes(e.key)) render(); });
+    // Helpers
+    function formatMs(ms){ if(!Number.isFinite(ms)) return '—'; const s=Math.floor(ms/1000); const m=Math.floor(s/60); const sec=s%60; const msPart=ms%1000; return `${m}:${sec.toString().padStart(2,'0')}.${msPart.toString().padStart(3,'0')}` }
+    function escapeHtml(s){ return (''+s).replace(/[&<>\"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c])); }
 
     // Fullscreen
     document.getElementById('btn-fullscreen').addEventListener('click', ()=>{
       const el = document.documentElement; if (!document.fullscreenElement){ el.requestFullscreen?.(); } else { document.exitFullscreen?.(); }
     });
-
-    function escapeHtml(s){ return (''+s).replace(/[&<>\"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c])); }
-
-    // First render & demo seed if empty
-    (function init(){
-      if (!localStorage.getItem(STORAGE_KEY)){
-        const demo=[
-          {id:crypto.randomUUID(), name:'Ava', timeMs:72345, created:new Date().toISOString()},
-          {id:crypto.randomUUID(), name:'Noah', timeMs:70123, created:new Date().toISOString()},
-          {id:crypto.randomUUID(), name:'Mia', timeMs:76543, created:new Date().toISOString()}
-        ];
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(demo));
-        localStorage.setItem('leaderboardLastUpdated', new Date().toISOString());
-      }
-      if (!localStorage.getItem(SETTINGS_KEY)){
-        localStorage.setItem(SETTINGS_KEY, JSON.stringify({title:'Leaderboard', topN:'', rotateSeconds:0}));
-      }
-      render();
-    })();
   </script>
 </body>
 </html>
