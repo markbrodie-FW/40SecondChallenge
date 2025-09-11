@@ -120,7 +120,7 @@
     function nowISO(){ return new Date().toISOString(); }
     function getEntries(){ try{ return JSON.parse(localStorage.getItem(STORAGE_KEY))||[] }catch{ return [] } }
     function setEntries(list){ localStorage.setItem(STORAGE_KEY, JSON.stringify(list)); localStorage.setItem('leaderboardLastUpdated', nowISO()); }
-    function getSettings(){ try{ return JSON.parse(localStorage.getItem(SETTINGS_KEY))||{title:'Leaderboard',topN:'',rotateSeconds:0} }catch{ return {title:'Leaderboard',topN:'',rotateSeconds:0} } }
+    function getSettings(){ try{ return JSON.parse(localStorage.getItem(SETTINGS_KEY))||{title:'40 Second Challenge – Leaderboard',topN:'',rotateSeconds:0} }catch{ return {title:'40 Second Challenge – Leaderboard',topN:'',rotateSeconds:0} } }
     function setSettings(obj){ localStorage.setItem(SETTINGS_KEY, JSON.stringify(obj)); }
 
     function parseTimeToMs(input){
@@ -232,7 +232,7 @@
         setEntries(demo);
       }
       if (!localStorage.getItem(SETTINGS_KEY)){
-        setSettings({ title:'Leaderboard', topN:'', rotateSeconds:0 });
+        setSettings({ title:'40 Second Challenge – Leaderboard', topN:'', rotateSeconds:0 });
       }
       renderAdmin();
       loadDraft();
