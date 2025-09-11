@@ -10,10 +10,10 @@
     }
     *{box-sizing:border-box}
     html,body{height:100%}
-    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif;background:var(--bg);color:var(--text);padding-bottom:56px;font-size: 35px}
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif;background:var(--bg);color:var(--text);padding-bottom:56px;font-size:36px}
     .container{max-width:1100px;margin:0 auto;padding:20px}
-    header{display:flex;align-items:center;justify-content:center;margin-bottom:16px}
-    .big{font-size:clamp(52px,4vw,88px);font-weight:800;letter-spacing:.3px;text-align:center}
+    header{display:flex;align-items:center;justify-content:center;flex-direction:column;margin-bottom:16px}
+    .big{font-size:clamp(26px,4vw,44px);font-weight:800;letter-spacing:.3px;text-align:center}
     .table-wrap{overflow:auto;border:1px solid var(--border);border-radius:16px}
     table{width:100%;border-collapse:separate;border-spacing:0}
     th,td{padding:12px 14px;border-bottom:1px solid var(--border)}
@@ -26,8 +26,12 @@
     button{appearance:none;border:1px solid var(--border);background:#0b0d13;color:var(--text);padding:10px 14px;border-radius:10px;cursor:pointer}
     a{color:inherit;opacity:.8}
     .footer-status{position:fixed;left:0;right:0;bottom:0;z-index:30;display:flex;justify-content:center;gap:10px;padding:10px 14px;background:rgba(10,12,18,0.8);backdrop-filter:saturate(130%) blur(4px);border-top:1px solid var(--border)}
+
+    /* Brand image at top */
+    .brand-logo{ display:block; margin:0 auto 8px; height:auto; width:auto; max-height:clamp(48px, 12vmin, 400px); object-fit:contain; }
+    @media (orientation: portrait){ .brand-logo{ max-height:clamp(64px, 14vmin, 160px); margin-bottom:12px; } }
   </style>
-  <style>
+    <style>
   :root{
     --brand:#121FA2;   /* deep blue */
     --accent:#73BCFB;  /* light blue */
@@ -38,6 +42,7 @@
     --text:#ffffff;
     --border: rgba(255,255,255,0.08);
   }
+
   body{
     background:
       radial-gradient(1000px 500px at 15% 10%, rgba(18,31,162,0.25), transparent),
@@ -90,11 +95,11 @@
     }
   }
 </style>
-
 </head>
 <body>
   <div class="container">
     <header>
+      <img src="https://markbrodie-fw.github.io/40SecondChallenge/40SecChallenge.png" alt="40 Second Challenge" class="brand-logo" />
       <div class="big" id="screen-title">Leaderboard</div>
     </header>
 
@@ -124,15 +129,16 @@
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
     import { getFirestore, collection, doc, onSnapshot, query, orderBy } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
-    // 1) Paste your Firebase config here (from Firebase Console → Project settings → Web app)
+    // Your Firebase config (kept from your file)
     const firebaseConfig = {
-   apiKey: "AIzaSyCd-nbnWC-uvSjAkDujRu31fO-C-DkxT98",
-  authDomain: "forty-sec-challenge.firebaseapp.com",
-  projectId: "forty-sec-challenge",
-  storageBucket: "forty-sec-challenge.firebasestorage.app",
-  messagingSenderId: "655465733506",
-  appId: "1:655465733506:web:c42b8864a60468bf84039b"
+      apiKey: "AIzaSyCd-nbnWC-uvSjAkDujRu31fO-C-DkxT98",
+      authDomain: "forty-sec-challenge.firebaseapp.com",
+      projectId: "forty-sec-challenge",
+      storageBucket: "forty-sec-challenge.firebasestorage.app",
+      messagingSenderId: "655465733506",
+      appId: "1:655465733506:web:c42b8864a60468bf84039b"
     };
+
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
@@ -154,7 +160,7 @@
       render();
     });
 
-    // Listen to entries (collection: entries). Order by timeMs asc for speed; tie-break handled in render.
+    // Listen to entries (collection: entries). Order by timeMs asc for speed
     onSnapshot(query(collection(db, 'entries'), orderBy('timeMs', 'asc')), (snap)=>{
       entries = snap.docs.map(d=> ({ id:d.id, ...d.data() }));
       render();
@@ -167,6 +173,20 @@
         lastUpdated.textContent = `Updated ${ts.toLocaleString()}`;
       }
     });
+
+    function formatDisplayName(e){
+      // Prefer first/last from Firestore; fall back to parsing legacy e.name
+      let first = (e.first||'').trim();
+      let last  = (e.last||'').trim();
+      if (!first && e.name){
+        const parts = String(e.name).trim().split(/\s+/);
+        first = parts[0]||''; last = parts.slice(1).join(' ');
+      }
+      const initial = last ? (last[0].toUpperCase()+'.') : '';
+      const base = [first, initial].filter(Boolean).join(' ');
+      const star = e.isChild ? ' ⭐' : '';
+      return escapeHtml(base + star);
+    }
 
     function render(){
       screenTitle.textContent = settings.title || 'Leaderboard';
@@ -181,7 +201,7 @@
       displayTbody.innerHTML = '';
       view.forEach((e, idx)=>{
         const tr=document.createElement('tr');
-        tr.innerHTML = `<td class="rank">${idx+1}</td><td>${escapeHtml(e.name||'')}</td><td class="time">${formatMs(e.timeMs)}</td>`;
+        tr.innerHTML = `<td class="rank">${idx+1}</td><td>${formatDisplayName(e)}</td><td class="time">${formatMs(e.timeMs)}</td>`;
         displayTbody.appendChild(tr);
       });
 
