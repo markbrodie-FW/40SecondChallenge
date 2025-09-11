@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Leaderboard — Admin</title>
+  <style>
+    :root{
+      --bg:#0e0f12; --panel:#151822; --muted:#9aa3af; --text:#e5e7eb; --accent:#7dd3fc; --border:#1f2633; --good:#34d399; --bad:#ef4444;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif;background:var(--bg);color:var(--text)}
+    .container{max-width:1100px;margin:0 auto;padding:20px}
+    header{display:flex;align-items:center;gap:16px;justify-content:space-between;margin-bottom:16px}
+    .big{font-size:clamp(22px,3vw,36px);font-weight:800;letter-spacing:.3px}
+    .sub{color:var(--muted)}
+    .panel{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:16px}
+    .stack{display:grid;gap:14px}
+    .row{display:flex;gap:12px;flex-wrap:wrap}
+    .row > *{flex:1 1 220px}
+    label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
+    input[type="text"], input[type="number"], input[type="file"], textarea, select{
+      width:100%;padding:12px 12px;border-radius:10px;border:1px solid var(--border);background:#0b0d13;color:var(--text);
+    }
+    button{appearance:none;border:1px solid var(--border);background:#0b0d13;color:var(--text);padding:10px 14px;border-radius:10px;cursor:pointer}
+    button.primary{background:linear-gradient(180deg,#111726,#0e1522);border-color:#2a3345}
+    button.ghost{background:transparent}
+    button.danger{border-color:#3b1e24;background:#1a0f12;color:#fca5a5}
+    .table-wrap{overflow:auto;border:1px solid var(--border);border-radius:16px}
+    table{width:100%;border-collapse:separate;border-spacing:0}
+    th,td{padding:12px 14px;border-bottom:1px solid var(--border)}
+    th{position:sticky;top:0;background:#10131b;color:var(--muted);text-align:left;font-weight:600}
+    tr:last-child td{border-bottom:none}
+    .rank{font-variant-numeric:tabular-nums;font-weight:700}
+    .time{font-variant-numeric:tabular-nums}
+    a{color:inherit;opacity:.8}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div>
+        <div class="big">Leaderboard Admin</div>
+        <div class="sub">Enter names and times; manage settings. <a href="index.html" title="Open Display">Open Display</a></div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button id="export">Export JSON</button>
+        <input type="file" id="import" accept="application/json" />
+      </div>
+    </header>
+
+    <div class="panel">
+      <div class="grid" style="display:grid;grid-template-columns:2fr 1fr;gap:16px">
+        <div class="stack">
+          <div class="row">
+            <div>
+              <label>Competitor name</label>
+              <input id="name" type="text" placeholder="Jane Smith" />
+            </div>
+            <div>
+              <label>Time (accepts mm:ss.mmm, ss.mmm, or seconds)</label>
+              <input id="time" type="text" placeholder="1:12.345 or 72.345 or 72" />
+            </div>
+          </div>
+          <div class="row">
+            <button class="primary" id="add">Add Entry</button>
+            <button id="add-and-clear">Add & New</button>
+            <button class="danger" id="clear-all">Clear All Entries</button>
+          </div>
+        </div>
+        <div class="stack">
+          <div class="panel">
+            <div style="font-weight:700">Display Settings</div>
+            <div class="stack" style="margin-top:12px">
+              <div>
+                <label>Screen title</label>
+                <input id="setting-title" type="text" placeholder="Leaderboard title" />
+              </div>
+              <div>
+                <label>Show top N (blank = all)</label>
+                <input id="setting-topN" type="number" min="1" />
+              </div>
+              <div>
+                <label>Rotate highlight every (seconds, 0 = off)</label>
+                <input id="setting-rotate" type="number" min="0" value="0" />
+              </div>
+              <button id="save-settings">Save Settings</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <div style="font-weight:700">Entries (auto-sorted by quickest time)</div>
+      </div>
+      <div class="table-wrap">
+        <table aria-label="Entries table">
+          <thead>
+            <tr>
+              <th style="width:80px">#</th>
+              <th>Name</th>
+              <th style="width:160px">Time</th>
+              <th style="width:120px">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="admin-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Shared keys with index.html
+    const STORAGE_KEY = 'leaderboardEntries:v1';
+    const SETTINGS_KEY = 'leaderboardSettings:v1';
+
+    function nowISO(){ return new Date().toISOString(); }
+    function getEntries(){ try{ return JSON.parse(localStorage.getItem(STORAGE_KEY))||[] }catch{ return [] } }
+    function setEntries(list){ localStorage.setItem(STORAGE_KEY, JSON.stringify(list)); localStorage.setItem('leaderboardLastUpdated', nowISO()); }
+    function getSettings(){ try{ return JSON.parse(localStorage.getItem(SETTINGS_KEY))||{title:'Leaderboard',topN:'',rotateSeconds:0} }catch{ return {title:'Leaderboard',topN:'',rotateSeconds:0} } }
+    function setSettings(obj){ localStorage.setItem(SETTINGS_KEY, JSON.stringify(obj)); }
+
+    function parseTimeToMs(input){
+      if (typeof input === 'number') return Math.round(input*1000);
+      if (!input) return NaN; let s=(''+input).trim(); if(!s) return NaN; s=s.replace(/,/g,'.');
+      if (s.includes(':')){ const parts=s.split(':'); if(parts.length!==2) return NaN; const m=Number(parts[0]); const sec=Number(parts[1]); if(Number.isNaN(m)||Number.isNaN(sec)) return NaN; return Math.round((m*60+sec)*1000); }
+      const sec=Number(s); if(Number.isNaN(sec)) return NaN; return Math.round(sec*1000);
+    }
+    function formatMs(ms){ if(!Number.isFinite(ms)) return '—'; const s=Math.floor(ms/1000); const m=Math.floor(s/60); const sec=s%60; const msPart=ms%1000; return `${m}:${sec.toString().padStart(2,'0')}.${msPart.toString().padStart(3,'0')}` }
+    function sortedEntries(){ const list=getEntries().slice(); list.sort((a,b)=> a.timeMs-b.timeMs || a.created.localeCompare(b.created)); return list }
+
+    // Elements
+    const nameEl = document.getElementById('name');
+    const timeEl = document.getElementById('time');
+    const addBtn = document.getElementById('add');
+    const addNewBtn = document.getElementById('add-and-clear');
+    const adminTbody = document.getElementById('admin-tbody');
+    const exportBtn = document.getElementById('export');
+    const importInput = document.getElementById('import');
+    const clearAllBtn = document.getElementById('clear-all');
+
+    // Autosave draft inputs so you can leave the form and come back later
+    const DRAFT_NAME_KEY = 'leaderboardDraftName';
+    const DRAFT_TIME_KEY = 'leaderboardDraftTime';
+    function loadDraft(){
+      const dn = localStorage.getItem(DRAFT_NAME_KEY);
+      const dt = localStorage.getItem(DRAFT_TIME_KEY);
+      if (dn !== null) nameEl.value = dn;
+      if (dt !== null) timeEl.value = dt;
+    }
+    function saveDraft(){
+      localStorage.setItem(DRAFT_NAME_KEY, nameEl.value);
+      localStorage.setItem(DRAFT_TIME_KEY, timeEl.value);
+    }
+    nameEl.addEventListener('input', saveDraft);
+    timeEl.addEventListener('input', saveDraft);
+
+    const settingTitle = document.getElementById('setting-title');
+    const settingTopN = document.getElementById('setting-topN');
+    const settingRotate = document.getElementById('setting-rotate');
+    const saveSettingsBtn = document.getElementById('save-settings');
+
+    function renderAdmin(){
+      const list = sortedEntries();
+      adminTbody.innerHTML='';
+      list.forEach((e, idx)=>{
+        const tr=document.createElement('tr');
+        tr.innerHTML=`<td class="rank">${idx+1}</td><td>${escapeHtml(e.name)}</td><td class="time">${formatMs(e.timeMs)}</td><td><button class="ghost btn-del" data-id="${e.id}">Delete</button></td>`;
+        adminTbody.appendChild(tr);
+      });
+      adminTbody.querySelectorAll('.btn-del').forEach(btn=> btn.addEventListener('click', (ev)=>{
+        const id=ev.currentTarget.getAttribute('data-id');
+        const list=getEntries().filter(x=>x.id!==id); setEntries(list); renderAdmin();
+      }));
+
+      const s = getSettings();
+      settingTitle.value = s.title || '';
+      settingTopN.value = s.topN || '';
+      settingRotate.value = s.rotateSeconds ?? 0;
+    }
+
+    function addEntry(){
+      const name=nameEl.value.trim();
+      const raw=timeEl.value.trim();
+      if(!name){ alert('Please enter a name.'); return; }
+      const timeMs=parseTimeToMs(raw);
+      if(!Number.isFinite(timeMs) || timeMs<=0){ alert('Enter a valid time: mm:ss.mmm, ss.mmm, or seconds.'); return; }
+      const entries=getEntries();
+      entries.push({ id:crypto.randomUUID(), name, timeMs, created: nowISO() });
+      setEntries(entries);
+      renderAdmin();
+    }
+
+    addBtn.addEventListener('click', ()=> addEntry());
+    addNewBtn.addEventListener('click', ()=>{ addEntry(); nameEl.value=''; timeEl.value=''; saveDraft(); nameEl.focus(); });
+
+    clearAllBtn.addEventListener('click', ()=>{
+      if(confirm('Clear ALL entries? This cannot be undone.')){ setEntries([]); renderAdmin(); }
+    });
+
+    exportBtn.addEventListener('click', ()=>{
+      const data={ entries:getEntries(), settings:getSettings() };
+      const blob=new Blob([JSON.stringify(data,null,2)], {type:'application/json'});
+      const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='leaderboard-export.json'; a.click(); URL.revokeObjectURL(url);
+    });
+
+    importInput.addEventListener('change', async (ev)=>{
+      const file=ev.target.files?.[0]; if(!file) return; const text=await file.text();
+      try{ const json=JSON.parse(text); if(Array.isArray(json.entries)) setEntries(json.entries); if(json.settings) setSettings(json.settings); renderAdmin(); } catch{ alert('Invalid JSON file.'); }
+      importInput.value='';
+    });
+
+    saveSettingsBtn.addEventListener('click', ()=>{
+      const cfg={ title: (settingTitle.value.trim()||'Leaderboard'), topN: (settingTopN.value.trim()||''), rotateSeconds: Number(settingRotate.value)||0 };
+      setSettings(cfg);
+      alert('Settings saved. Open or refresh the Display page to apply.');
+    });
+
+    function escapeHtml(s){ return (''+s).replace(/[&<>\"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c])); }
+
+    // Seed demo data on first run
+    (function init(){
+      if (!localStorage.getItem(STORAGE_KEY)){
+        const demo=[
+          {id:crypto.randomUUID(), name:'Ava', timeMs:72345, created:nowISO()},
+          {id:crypto.randomUUID(), name:'Noah', timeMs:70123, created:nowISO()},
+          {id:crypto.randomUUID(), name:'Mia', timeMs:76543, created:nowISO()}
+        ];
+        setEntries(demo);
+      }
+      if (!localStorage.getItem(SETTINGS_KEY)){
+        setSettings({ title:'Leaderboard', topN:'', rotateSeconds:0 });
+      }
+      renderAdmin();
+      loadDraft();
+    })();
+  </script>
+</body>
+</html>
