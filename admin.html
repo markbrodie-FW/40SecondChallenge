@@ -100,25 +100,37 @@
     :root{ --cta-bg:#22c55e; --cta-text:#052b12; --cta-border:#16a34a; --danger-bg:#ef4444; --danger-text:#ffffff; --danger-border:#dc2626; }
     .btn-cta{ background: var(--cta-bg) !important; color: var(--cta-text) !important; border-color: var(--cta-border) !important; font-weight:700 }
     .btn-danger{ background: var(--danger-bg) !important; color: var(--danger-text) !important; border-color: var(--danger-border) !important; font-weight:700 }
+  
+
+    /* Header rows + footer signout */
+    .admin-header{ display:grid; gap:6px; margin-bottom:16px }
+    .header-row1{ display:flex; align-items:center; justify-content:space-between }
+    .header-row1 .title{ font-size:clamp(22px,3vw,36px); font-weight:800 }
+    .header-row2{ display:flex; align-items:center; justify-content:space-between; gap:10px }
+    .header-actions{ display:flex; gap:10px; align-items:center }
+    .open-display{ color:inherit; opacity:.8; text-decoration:underline }
+    .admin-footer{ max-width:1200px; margin:24px auto 12px; padding:6px 20px }
+    .signout-link{ color:inherit; opacity:.8; text-decoration:underline }
   </style>
 </head>
 <body>
   <div class="container">
-    <header>
-      <div>
-        <div style="font-size:clamp(22px,3vw,36px);font-weight:800">Leaderboard Admin</div>
-        <div class="sub">Real-time with Firebase. <a href="index.html">Open Display</a></div>
+    <header class="admin-header">
+      <div class="header-row1">
+        <div class="title">Leaderboard Admin</div>
       </div>
-      <div style="display:flex;gap:10px;align-items:center">
-        <button id="btn-settings" class="icon-btn" title="Display settings">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c0 .66.39 1.26 1 1.51.32.14.67.21 1.02.21H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>
-          Settings
-        </button>
-        <button id="btn-theme" class="icon-btn" title="Toggle light/dark">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
-          <span class="theme-label">Dark</span>
-        </button>
-        <div id="auth-area"></div>
+      <div class="header-row2">
+        <a href="index.html" class="open-display">Open Display</a>
+        <div class="header-actions">
+          <button id="btn-settings" class="icon-btn" title="Display settings">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c0 .66.39 1.26 1 1.51.32.14.67.21 1.02.21H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>
+            Settings
+          </button>
+          <button id="btn-theme" class="icon-btn" title="Toggle light/dark">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <span class="theme-label">Dark</span>
+          </button>
+        </div>
       </div>
     </header>
 
@@ -221,6 +233,8 @@
     </div>
   </div>
 
+  <footer class="admin-footer"><a href="#" id="signout-link" class="signout-link">Sign out</a></footer>
+
   <script type="module">
     // ===== Firebase SDK via CDN =====
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
@@ -288,11 +302,8 @@
     });
 
     onAuthStateChanged(auth, (user)=>{
-      if (user){
-        loginPanel.hidden = true; appPanel.hidden = false;
-        authArea.innerHTML = `<span class="sub">Signed in as ${user.email||user.uid}</span> <button id=\"btn-logout\" class=\"ghost\">Sign out</button>`;
-        document.getElementById('btn-logout').addEventListener('click', ()=> signOut(auth));
-      } else { loginPanel.hidden = false; appPanel.hidden = true; authArea.innerHTML=''; }
+      loginPanel.hidden = !!user;
+      appPanel.hidden = !user;
     });
 
     // ===== Data & Settings =====
@@ -391,6 +402,10 @@
     function escapeHtml(s){ return (''+s).replace(/[&<>\"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c])); }
 
     (function init(){ loadDraft(); })();
+    window.addEventListener('DOMContentLoaded', ()=>{
+      const link = document.getElementById('signout-link');
+      if (link) link.addEventListener('click', (e)=>{ e.preventDefault(); signOut(auth); });
+    });
   </script>
 </body>
 </html>
